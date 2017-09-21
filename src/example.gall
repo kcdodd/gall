@@ -14,9 +14,9 @@
 ) f: // define f to be the above function
 
 // compose f and 0, f(0), then compose with print, print(f(0)), and evaluate
-0 f.* print.*|
-1 f.* print.*|
-2 f.* print.*|
+0 f.* print.*| // -> no
+1 f.* print.*| // -> yes
+2 f.* print.*| // -> no
 
 // Example Key-Value Objects
 (( // define a function that returns a function
@@ -31,10 +31,21 @@
 (
   o:
   // compose object function with symbol o(a)
-  a o.* print.*|
-  b o.* print.*|
-  c o.* print.*|
+  a o.* print.*| // -> hello
+  b o.* print.*| // -> goodbye
+  c o.* print.*| // -> wubalubadubdub
 )*|
+
+// Example Iteration
+(
+  i: // input is number of iterations
+  i. print.*| // print current iteration
+  "done" print.* true: // terminal case
+  i.; 1;, diff.* w.* false: // loop case take advantage of tail-call recursion
+  i.; 0;, eq.*.| // loop condition
+) w:
+
+5 w.*| // -> 5, 4, 3, 2, 1, 0, done
 
 // Example Recursion
 (

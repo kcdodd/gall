@@ -29,10 +29,15 @@ exports.parse = function(source) {
 const evaluate = function(f, x) {
   if (typeof f === 'function') {
     if (f.tailCall) {
-      //console.log("tail call");
+      //console.log("tail call:");
+      //let numCalls = 0;
+
       let nextF = f(x);
+
       while(nextF.tailCall) {
         nextF = nextF();
+        //console.log('iteration: ' + numCalls);
+        //numCalls++;
       }
 
       if (typeof nextF === 'function') {
@@ -118,13 +123,17 @@ exports.ops = {
     const f = stack.pop();
     const g = stack.pop();
 
-    stack.push(() => {
+    const h = () => {
       if (typeof g === 'function'){
-        return evaluate(f, evaluate(g));
+        return f(evaluate(g));
       }else{
-        return evaluate(f, g);
+        return f(g);
       }
-    });
+    };
+
+    h.tailCall = f.tailCall;
+
+    stack.push(h);
 
     return stack;
   },
