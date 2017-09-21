@@ -1,3 +1,18 @@
+"Example Indexing" print.*|
+
+"a"; void, "b";, "c";,| myList:
+0 myList.* print.*| // -> a
+1 myList.* print.*| // -> b
+2 myList.* print.*| // -> c
+
+"Example Function Call" print.*|
+
+1; 2;,3;,4;, sum.* print.*|  // -> 10
+
+"Example Function Definition" print.*|
+(; 1;, sum.*|) addOne:
+1 addOne.* print.*| // -> 2
+
 "Example If-Then-Else" print.*|
 
 ( // begins new function definition
@@ -38,13 +53,6 @@
   b o.* print.*| // -> goodbye
   c o.* print.*| // -> wubalubadubdub
 )*|
-
-"Example Indexing" print.*|
-
-"a"; "b";, "c";, myList:
-0 myList.@ print.*|
-1 myList.@ print.*|
-2 myList.@ print.*|
 
 
 "Example Iteration" print.*|

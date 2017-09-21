@@ -14,7 +14,6 @@ let lexer = moo.compile({
   dereference: '.',
   compose: '*',
   evaluate: '|',
-  access: '@',
   void: 'void',
   bool: /true|false/,
   symbol: /[A-Za-z_][A-Za-z0-9_]*/
@@ -83,6 +82,11 @@ exports.ops = {
     stack.push(() => (parseInt(value)));
     return stack;
   },
+  void: (value) => (stack) => {
+    //console.log("void");
+    stack.push(() => ([]));
+    return stack;
+  },
   symbol: (value) => (stack, scope) => {
     //console.log("symbol");
     stack.push(() => (value));
@@ -123,11 +127,15 @@ exports.ops = {
     const f = stack.pop();
     const g = stack.pop();
 
-    const h = () => {
-      if (typeof g === 'function'){
-        return f(evaluate(g));
+    const h = (x) => {
+      const gval = (typeof g === 'function') ? evaluate(g, x) : g;
+
+      if (f instanceof Array) {
+        return f[gval];
+      }else if (typeof f === 'function') {
+        return f(gval);
       }else{
-        return f(g);
+        throw new Error("Not a function.")
       }
     };
 
@@ -161,14 +169,6 @@ exports.ops = {
   newlist: () => (stack) => {
     const f = stack.pop();
     stack.push(() => ([evaluate(f)]));
-    return stack;
-  },
-  access: () => (stack) => {
-    const list = stack.pop();
-    const index = stack.pop();
-
-    stack.push(() => (evaluate(list)[evaluate(index)]));
-
     return stack;
   }
 };
