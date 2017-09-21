@@ -1,0 +1,17 @@
+{
+  "name": "gall",
+  "version": "1.0.0",
+  "description": "Gall is a made-up programming language.",
+  "main": "index.js",
+  "scripts": {
+
+  },
+  "author": "Kenneth Carter Dodd",
+  "license": "MIT",
+  "dependencies": {
+    "moo": "^0.4.3"
+  },
+  "devDependencies": {
+
+  }
+}

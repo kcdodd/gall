@@ -1,0 +1,51 @@
+// Example If-Then-Else
+( // begins new function definition
+  // define x to be input to function
+  x:
+  // define true to be yes
+  "yes" true:
+  // define false to be no
+  "no" false:
+  // x. gives value defined from x: (the input)
+  // form lists [x] & [1] then concatenate to form [x, 1]
+  // compose equals function with list eq([x,1])
+  // evaluate... returns result of evaluation
+  x.; 1;, eq.*.|
+) f: // define f to be the above function
+
+// compose f and 0, f(0), then compose with print, print(f(0)), and evaluate
+0 f.* print.*|
+1 f.* print.*|
+2 f.* print.*|
+
+// Example Key-Value Objects
+(( // define a function that returns a function
+  x:
+  "hello" a:
+  "goodbye" b:
+  "wubalubadubdub" c:
+  // x. gives value from input value, and x.. uses input value as local reference
+  // e.g. if x. = a, then x.. = "hello"
+  x..|
+))
+(
+  o:
+  // compose object function with symbol o(a)
+  a o.* print.*|
+  b o.* print.*|
+  c o.* print.*|
+)*|
+
+// Example Recursion
+(
+  n:
+  // prints current input
+  n. print.*|
+  1 true:
+  // factorial(n-1) * n
+  n.; 1;, diff.* factorial.*; n.;, prod.* false:
+  // n === 1 -> true/false -> local key gives returned value
+  n.; 1;, eq.*.|
+) factorial:
+
+10 factorial.* print.*|
