@@ -13,6 +13,11 @@
 (; 1;, sum.*|) addOne:
 1 addOne.* print.*| // -> 2
 
+"Example Curry Definition" print.*|
+2.71828182845904 e:
+e. pow.! exp:
+2 exp.* print.*| // -> 7.38905...
+
 "Example If-Then-Else" print.*|
 
 ( // begins new function definition

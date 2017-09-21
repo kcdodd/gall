@@ -14,6 +14,7 @@ let lexer = moo.compile({
   dereference: '.',
   compose: '*',
   evaluate: '|',
+  curry: '!',
   void: 'void',
   bool: /true|false/,
   symbol: /[A-Za-z_][A-Za-z0-9_]*/
@@ -134,6 +135,29 @@ exports.ops = {
         return f[gval];
       }else if (typeof f === 'function') {
         return f(gval);
+      }else{
+        throw new Error("Not a function.")
+      }
+    };
+
+    h.tailCall = f.tailCall;
+
+    stack.push(h);
+
+    return stack;
+  },
+  curry: () => (stack) => {
+    //console.log("compose");
+    const f = stack.pop();
+    const g = stack.pop();
+
+    const h = (x) => {
+      const gval = (typeof g === 'function') ? evaluate(g) : g;
+      const garr = (gval instanceof Array) ? gval : [gval];
+      const xarr = (x instanceof Array) ? x : [x];
+
+      if (typeof f === 'function') {
+        return f([...garr, ...xarr]);
       }else{
         throw new Error("Not a function.")
       }

@@ -10,7 +10,7 @@ rootScope.set("print", console.log);
 rootScope.set("eq", (x) => (x[0] == x[1]));
 
 rootScope.set("diff", (x) => {
-  if (!x){
+  if (typeof x === 'undefined'){
     throw new Error("diff must have an input.")
   }
 
@@ -33,6 +33,24 @@ rootScope.set("sum", (x) => {
 
 rootScope.set("prod", (x) => {
   return x.reduce((sum, cur) => (sum * cur), 1);
+});
+
+rootScope.set("pow", (x) => {
+  if (typeof x === 'undefined'){
+    throw new Error("pow must have an input.")
+  }
+
+  if (x instanceof Array) {
+    if(x.length === 1) {
+      return x[0];
+    }else if (x.length === 2) {
+      return Math.pow(x[0], x[1]);
+    }else{
+      throw new Error("pow may only have 1 or 2 inputs.")
+    }
+  }else{
+    return x;
+  }
 });
 
 const makef = gall.parse(source);
