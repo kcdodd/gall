@@ -162,6 +162,14 @@ exports.ops = {
     const f = stack.pop();
     stack.push(() => ([evaluate(f)]));
     return stack;
+  },
+  access: () => (stack) => {
+    const list = stack.pop();
+    const index = stack.pop();
+
+    stack.push(() => (evaluate(list)[evaluate(index)]));
+
+    return stack;
   }
 };
 
