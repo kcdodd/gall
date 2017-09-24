@@ -31,6 +31,7 @@ e. pow.! exp:
   // form lists [x] & [1] then concatenate to form [x, 1]
   // compose equals function with list eq([x,1])
   // evaluate... returns result of evaluation
+  // use boolean result to dereference local value for true/false
   x.; 1;, eq.*.|
 ) f: // define f to be the above function
 
@@ -42,7 +43,7 @@ e. pow.! exp:
 
 "Example Key-Value Objects" print.*|
 
-(( // define a function that returns a function
+( // define a function that returns values given keys
   x:
   "hello" a:
   "goodbye" b:
@@ -50,14 +51,13 @@ e. pow.! exp:
   // x. gives value from input value, and x.. uses input value as local reference
   // e.g. if x. = a, then x.. = "hello"
   x..|
-))
-(
-  o:
-  // compose object function with symbol o(a)
-  a o.* print.*| // -> hello
-  b o.* print.*| // -> goodbye
-  c o.* print.*| // -> wubalubadubdub
-)*|
+) o:
+
+// compose object function with symbol o(a)
+a o.* print.*| // -> hello
+b o.* print.*| // -> goodbye
+c o.* print.*| // -> wubalubadubdub
+
 
 
 "Example Iteration" print.*|
