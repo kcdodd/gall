@@ -13,6 +13,10 @@
 (; 1;, sum.*|) addOne:
 1 addOne.* print.*| // -> 2
 
+"Example Function Import" print.*|
+"./src/addOne.gall"# impAddOne:
+2 impAddOne.* print.*| // -> 3
+
 "Example Curry Definition" print.*|
 2.71828182845904 e:
 (x: e.; x.;, pow.*|) exp:

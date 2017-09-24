@@ -1,4 +1,6 @@
 const moo = require('moo');
+const fs = require('fs');
+
 
 let lexer = moo.compile({
   space: {match: /\s+/, lineBreaks: true},
@@ -16,7 +18,8 @@ let lexer = moo.compile({
   evaluate: '|',
   void: 'void',
   bool: /true|false/,
-  symbol: /[A-Za-z_][A-Za-z0-9_]*/
+  symbol: /[A-Za-z_][A-Za-z0-9_]*/,
+  import: '#'
 });
 
 exports.parse = function(source) {
@@ -56,10 +59,10 @@ const evaluate = function(f, x) {
 exports.evaluate = evaluate;
 
 exports.ops = {
-  bool: (value) => (stack) => {
+  bool: (token) => (stack) => {
     //console.log("bool");
     stack.push(() => {
-      if (value === 'true'){
+      if (token.value === 'true'){
         return true;
       }else{
         return false;
@@ -67,32 +70,32 @@ exports.ops = {
     });
     return stack;
   },
-  string: (value) => (stack) => {
+  string: (token) => (stack) => {
     //console.log("string");
-    stack.push(() => (value.substring(1,value.length-1)));
+    stack.push(() => (token.value.substring(1,token.value.length-1)));
     return stack;
   },
-  float: (value) => (stack) => {
+  float: (token) => (stack) => {
     //console.log("float");
-    stack.push(() => (parseFloat(value)));
+    stack.push(() => (parseFloat(token.value)));
     return stack;
   },
-  int: (value) => (stack) => {
+  int: (token) => (stack) => {
     //console.log("int");
-    stack.push(() => (parseInt(value)));
+    stack.push(() => (parseInt(token.value)));
     return stack;
   },
-  void: (value) => (stack) => {
+  void: (token) => (stack) => {
     //console.log("void");
     stack.push(() => ([]));
     return stack;
   },
-  symbol: (value) => (stack, scope) => {
+  symbol: (token) => (stack, scope) => {
     //console.log("symbol");
-    stack.push(() => (value));
+    stack.push(() => (token.value));
     return stack;
   },
-  reference: () => (stack, scope) => {
+  reference: (token) => (stack, scope) => {
     //console.log("reference");
     const keys = stack.pop();
     const value = stack.pop();
@@ -106,7 +109,7 @@ exports.ops = {
     stack.push(value);
     return stack;
   },
-  dereference: () => (stack, scope) => {
+  dereference: (token) => (stack, scope) => {
     //console.log("dereference");
     const keys = stack.pop();
 
@@ -122,7 +125,7 @@ exports.ops = {
     }
     return stack;
   },
-  compose: () => (stack) => {
+  compose: (token) => (stack) => {
     //console.log("compose");
     const f = stack.pop();
     const g = stack.pop();
@@ -135,7 +138,7 @@ exports.ops = {
       }else if (typeof f === 'function') {
         return f(gval);
       }else{
-        throw new Error("Not a function.")
+        throw new Error(`Not a function line ${token.line} col ${token.col}`)
       }
     };
 
@@ -145,7 +148,7 @@ exports.ops = {
 
     return stack;
   },
-  evaluate: () => (stack) => {
+  evaluate: (token) => (stack) => {
     //console.log("evaluate");
     const f = stack.pop();
 
@@ -153,7 +156,7 @@ exports.ops = {
 
     return stack;
   },
-  concat: () => (stack) => {
+  concat: (token) => (stack) => {
     //console.log("concat");
 
     const listEnd = stack.pop();
@@ -166,9 +169,18 @@ exports.ops = {
 
     return stack;
   },
-  newlist: () => (stack) => {
+  newlist: (token) => (stack) => {
     const f = stack.pop();
     stack.push(() => ([evaluate(f)]));
+    return stack;
+  },
+  import: (token) => (stack) => {
+    const moduleName = stack.pop();
+    const source = fs.readFileSync(evaluate(moduleName)).toString('utf8');
+    const makef = exports.parse(source);
+
+    makef(stack, rootScope);
+
     return stack;
   }
 };
@@ -182,7 +194,6 @@ exports.makeFunction = (lexer) => {
   let lastOp;
 
   while(token && token.type !== 'functionEnd'){
-    //console.log(token);
 
     if (token.type === 'functionStart'){
       sequence.push(exports.makeFunction(lexer));
@@ -193,7 +204,7 @@ exports.makeFunction = (lexer) => {
       if (op) {
         lastOp = token.type;
         //console.log(`${sequence.length}: ${token.type}`);
-        sequence.push(op(token.value));
+        sequence.push(op(token));
       }
     }
 
@@ -260,3 +271,61 @@ exports.makeScope = (parentScope) => {
     }
   };
 };
+
+exports.run = (path) => {
+  const source = fs.readFileSync(path).toString('utf8');
+  const makef = exports.parse(source);
+  const stack = [];
+  makef(stack, rootScope);
+  evaluate(stack.pop());
+};
+
+const rootScope = exports.makeScope();
+
+rootScope.set("print", console.log);
+
+rootScope.set("eq", (x) => (x[0] == x[1]));
+
+rootScope.set("diff", (x) => {
+  if (typeof x === 'undefined'){
+    throw new Error("diff must have an input.")
+  }
+
+  if (x instanceof Array) {
+    if(x.length === 1) {
+      return -x[0];
+    }else if (x.length === 2) {
+      return x[0] - x[1];
+    }else{
+      throw new Error("diff may only have 1 or 2 inputs.")
+    }
+  }else{
+    return -x;
+  }
+});
+
+rootScope.set("sum", (x) => {
+  return x.reduce((sum, cur) => (sum + cur), 0);
+});
+
+rootScope.set("prod", (x) => {
+  return x.reduce((sum, cur) => (sum * cur), 1);
+});
+
+rootScope.set("pow", (x) => {
+  if (typeof x === 'undefined'){
+    throw new Error("pow must have an input.")
+  }
+
+  if (x instanceof Array) {
+    if(x.length === 1) {
+      return x[0];
+    }else if (x.length === 2) {
+      return Math.pow(x[0], x[1]);
+    }else{
+      throw new Error("pow may only have 1 or 2 inputs.")
+    }
+  }else{
+    return x;
+  }
+});
