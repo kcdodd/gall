@@ -1,7 +1,7 @@
 {
   "name": "gall",
   "version": "1.0.0",
-  "description": "Gall is a made-up programming language.",
+  "description": "Gall is a toy programming language. This is a prototyping javascript interpreter for gall.",
   "main": "index.js",
   "scripts": {
 
