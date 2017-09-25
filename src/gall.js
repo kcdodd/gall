@@ -1,6 +1,6 @@
 const moo = require('moo');
 const fs = require('fs');
-
+const path = require('path');
 
 let lexer = moo.compile({
   space: {match: /\s+/, lineBreaks: true},
@@ -22,10 +22,26 @@ let lexer = moo.compile({
   import: '#'
 });
 
-exports.parse = function(source) {
+const modules = {};
+
+exports.run = (mainPath) => {
+  const filename = path.resolve(mainPath);
+
+  const makef = parse(filename);
+  const stack = [];
+  makef(stack, rootScope);
+  evaluate(stack.pop());
+};
+
+const parse = function(filename) {
+  if (modules[filename]) {
+    return modules[filename];
+  }
+
+  const source = fs.readFileSync(filename).toString('utf8');
   lexer.reset(source);
 
-  return exports.makeFunction(lexer);
+  return modules[filename] = makeFunction(lexer, filename);
 };
 
 const evaluate = function(f, x) {
@@ -56,9 +72,8 @@ const evaluate = function(f, x) {
   }
 };
 
-exports.evaluate = evaluate;
 
-exports.ops = {
+const ops = {
   bool: (token) => (stack) => {
     //console.log("bool");
     stack.push(() => {
@@ -174,10 +189,11 @@ exports.ops = {
     stack.push(() => ([evaluate(f)]));
     return stack;
   },
-  import: (token) => (stack) => {
+  import: (token, filename) => (stack, scope) => {
     const moduleName = stack.pop();
-    const source = fs.readFileSync(evaluate(moduleName)).toString('utf8');
-    const makef = exports.parse(source);
+    const moduleFilename = path.resolve(path.dirname(filename), evaluate(moduleName));
+
+    const makef = parse(moduleFilename);
 
     makef(stack, rootScope);
 
@@ -185,7 +201,7 @@ exports.ops = {
   }
 };
 
-exports.makeFunction = (lexer) => {
+const makeFunction = (lexer, filename) => {
   //console.log("function");
   const sequence = [];
   let tailCall = false;
@@ -196,15 +212,15 @@ exports.makeFunction = (lexer) => {
   while(token && token.type !== 'functionEnd'){
 
     if (token.type === 'functionStart'){
-      sequence.push(exports.makeFunction(lexer));
+      sequence.push(makeFunction(lexer, filename));
     }else{
 
-      let op = exports.ops[token.type];
+      let op = ops[token.type];
 
       if (op) {
         lastOp = token.type;
         //console.log(`${sequence.length}: ${token.type}`);
-        sequence.push(op(token));
+        sequence.push(op(token, filename));
       }
     }
 
@@ -225,7 +241,7 @@ exports.makeFunction = (lexer) => {
         localStack.push(x);
       }
 
-      let localScope = exports.makeScope(scope);
+      let localScope = makeScope(scope);
 
       sequence.forEach(op => {
         op(localStack, localScope);
@@ -244,10 +260,12 @@ exports.makeFunction = (lexer) => {
   };
 };
 
-exports.makeScope = (parentScope) => {
+const makeScope = (parentScope, filename) => {
   const references = {};
 
   return {
+    filename: () => (filename ? filename : parentScope.filename()),
+    dirname: () => (filename ? path.dirname(filename) : parentScope.dirname()),
     set: (key, value) => {
 
       if (typeof references[key] !== 'undefined') {
@@ -272,15 +290,7 @@ exports.makeScope = (parentScope) => {
   };
 };
 
-exports.run = (path) => {
-  const source = fs.readFileSync(path).toString('utf8');
-  const makef = exports.parse(source);
-  const stack = [];
-  makef(stack, rootScope);
-  evaluate(stack.pop());
-};
-
-const rootScope = exports.makeScope();
+const rootScope = makeScope();
 
 rootScope.set("print", console.log);
 
