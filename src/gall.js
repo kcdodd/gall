@@ -12,8 +12,9 @@ let lexer = moo.compile({
   functionEnd:  ')',
   concat: ',',
   newlist: ';',
-  reference: ':',
-  dereference: '.',
+  set: ':',
+  reset: '!',
+  get: '.',
   compose: '*',
   evaluate: '|',
   void: 'void',
@@ -110,7 +111,7 @@ const ops = {
     stack.push(() => (token.value));
     return stack;
   },
-  reference: (token) => (stack, scope) => {
+  set: (token) => (stack, scope) => {
     //console.log("reference");
     const keys = stack.pop();
     const value = stack.pop();
@@ -124,7 +125,21 @@ const ops = {
     stack.push(value);
     return stack;
   },
-  dereference: (token) => (stack, scope) => {
+  reset: (token) => (stack, scope) => {
+    //console.log("redefine");
+    const keys = stack.pop();
+    const value = stack.pop();
+
+    if (typeof keys === "function") {
+      scope.reset(evaluate(keys), value);
+    }else{
+      scope.reset(keys, value);
+    }
+
+    stack.push(value);
+    return stack;
+  },
+  get: (token) => (stack, scope) => {
     //console.log("dereference");
     const keys = stack.pop();
 
@@ -271,6 +286,15 @@ const makeScope = (parentScope, filename) => {
       if (typeof references[key] !== 'undefined') {
         throw new Error(`Value for key ${key} already defined`);
       }else{
+
+        references[key] = value;
+      }
+      //console.log(references);
+    },
+    reset: (key, value) => {
+      if (typeof references[key] === 'undefined') {
+        parentScope.reset(key, value);
+      }else{
         references[key] = value;
       }
       //console.log(references);
@@ -295,6 +319,26 @@ const rootScope = makeScope();
 rootScope.set("print", console.log);
 
 rootScope.set("eq", (x) => (x[0] == x[1]));
+
+rootScope.set("not", (x) => {
+  if (x instanceof Array) {
+    return x.map((cur) => (!cur));
+  }else{
+    return !x;
+  }
+});
+
+rootScope.set("or", (x) => {
+  return x.reduce((sum, cur) => (sum || cur), false);
+});
+
+rootScope.set("and", (x) => {
+  return x.reduce((sum, cur) => (sum && cur), true);
+});
+
+rootScope.set("xor", (x) => {
+  return x.reduce((sum, cur) => ((sum || cur) && !(sum && cur)), false);
+});
 
 rootScope.set("diff", (x) => {
   if (typeof x === 'undefined'){

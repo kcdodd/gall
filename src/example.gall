@@ -91,3 +91,30 @@ c o.* print.*| // -> wubalubadubdub
 ) factorial:
 
 10 factorial.* print.*|
+
+"Example Closure" print.*|
+
+(
+  "old stuff" a:
+  "other stuff" b:
+
+  (
+    m:
+    (x: (x.!)) set:
+    (x: x..) get:
+    m..
+  )
+) q:
+
+// creates object
+q.| firstObj:
+q.| secondObj:
+
+// get values from object's closure
+a get firstObj.*|*| print.*|
+b get firstObj.*|*| print.*|
+
+// set new value in first object, but not second object
+"new stuff" a set firstObj.*|*|*|
+a get firstObj.*|*| print.*|
+a get secondObj.*|*| print.*|
