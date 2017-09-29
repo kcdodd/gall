@@ -12,10 +12,14 @@ let lexer = moo.compile({
   functionEnd:  ')',
   concat: ',',
   newlist: ';',
+  push: '<',
+  pop: '>',
   set: ':',
   reset: '!',
   get: '.',
   compose: '*',
+  map: '^',
+  reduce: '/',
   evaluate: '|',
   void: 'void',
   bool: /true|false/,
@@ -122,7 +126,6 @@ const ops = {
       scope.set(keys, value);
     }
 
-    stack.push(value);
     return stack;
   },
   reset: (token) => (stack, scope) => {
@@ -136,7 +139,6 @@ const ops = {
       scope.reset(keys, value);
     }
 
-    stack.push(value);
     return stack;
   },
   get: (token) => (stack, scope) => {
@@ -168,11 +170,41 @@ const ops = {
       }else if (typeof f === 'function') {
         return f(gval);
       }else{
-        throw new Error(`Not a function line ${token.line} col ${token.col}`)
+        throw new Error(`Not a function line ${token.line} col ${token.col}`);
       }
     };
 
     h.tailCall = f.tailCall;
+
+    stack.push(h);
+
+    return stack;
+  },
+  map: (token) => (stack) => {
+    //console.log("compose");
+    const f = stack.pop();
+    const arr = stack.pop();
+
+    const newarr = () => {
+      const arrval = (typeof arr === 'function') ? evaluate(arr) : arr;
+
+      return arrval.map((x, index) => evaluate(f, [x, index]));
+    };
+
+    stack.push(newarr);
+
+    return stack;
+  },
+  reduce: (token) => (stack) => {
+    //console.log("compose");
+    const f = stack.pop();
+    const arr = stack.pop();
+
+    const h = (initial) => {
+      const arrval = (typeof arr === 'function') ? evaluate(arr) : arr;
+
+      return arrval.reduce((acc, x, index) => evaluate(f, [acc, x, index]), initial);
+    };
 
     stack.push(h);
 
@@ -194,8 +226,46 @@ const ops = {
     stack.push(() => {
       const a = evaluate(listStart);
       const b = evaluate(listEnd);
-      return [...a, ...b];
+
+      if (a instanceof Array && b instanceof Array) {
+        return [...a, ...b];
+      }else if (typeof a === 'string' && typeof b === 'string') {
+        return a + b;
+      }
     });
+
+    return stack;
+  },
+  push: (token) => (stack) => {
+    //console.log("push");
+
+    const value = stack.pop();
+    const list = stack.pop();
+    stack.push(() => {
+      const valueval = evaluate(value);
+      const listval = evaluate(list);
+      return [...listval, valueval];
+    });
+
+    return stack;
+  },
+  pop: (token) => (stack) => {
+    //console.log("pop");
+
+    const list = stack.pop();
+    const listval = evaluate(list);
+
+    if (listval.length > 1) {
+
+      stack.push(listval.slice(0, listval.length-1));
+      stack.push(listval[listval.length-1]);
+
+    }else if (listval.length === 1){
+      stack.push([]);
+      stack.push(listval[0]);
+    }else{
+      throw new Error(`Cannot pop from empty list ${token.line} col ${token.col}`);
+    }
 
     return stack;
   },

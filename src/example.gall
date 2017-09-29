@@ -1,9 +1,31 @@
-"Example Indexing" print.*|
+"Example String Concatenation" print.*|
+
+"Hello" " ", "World", print.*|
+
+"Example Array Indexing" print.*|
 
 "a"; void, "b";, "c";,| myList:
 0 myList.* print.*| // -> a
 1 myList.* print.*| // -> b
 2 myList.* print.*| // -> c
+
+"Example Reduce." print.*|
+
+(x: 1 x.* print.*| 0 x.*| " ", 1 x.*|,) printAndConcatenate:
+
+"list... " myList. printAndConcatenate./*| print.*|
+
+"Example Map." print.*|
+
+myList. (x: "[" 0 x.*, "]",|)^ (x: 1 x.* print.*|)/|
+
+"Example Stack Operations." print.*|
+
+myList. "d" < "e" < "f" < myList!
+
+"list... " myList. printAndConcatenate./*| print.*|
+
+myList. (> index: > x: "[" x., "] ",|)^ (>index: >x: >acc: x. print.*|)/|
 
 "Example Function Call" print.*|
 
