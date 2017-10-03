@@ -1,142 +1,116 @@
-"Example String Concatenation" print.*|
-
-"Hello" " ", "World", print.*|
-
-"Example Array Indexing" print.*|
-
-"a"; void, "b";, "c";,| myList:
-0 myList.* print.*| // -> a
-1 myList.* print.*| // -> b
-2 myList.* print.*| // -> c
-
-"Example Reduce." print.*|
-
-(x: 1 x.* print.*| 0 x.*| " ", 1 x.*|,) printAndConcatenate:
-
-"list... " myList. printAndConcatenate./*| print.*|
-
-"Example Map." print.*|
-
-myList. (x: "[" 0 x.*, "]",|)^ (x: 1 x.* print.*|)/|
-
-"Example Stack Operations." print.*|
-
-myList. "d" < "e" < "f" < myList!
-
-"list... " myList. printAndConcatenate./*| print.*|
-
-myList. (> index: > x: "[" x., "] ",|)^ (>index: >x: >acc: x. print.*|)/|
-
-"Example Function Call" print.*|
-
-1; 2;,3;,4;, sum.* print.*|  // -> 10
-
-"Example Function Definition" print.*|
-(; 1;, sum.*|) addOne:
-1 addOne.* print.*| // -> 2
-
-"Example Function Import" print.*|
-"./addOne.gall"# impAddOne:
-2 impAddOne.* print.*| // -> 3
-
-"Example Curry Definition" print.*|
-2.71828182845904 e:
-(x: e.; x.;, pow.*|) exp:
-2 exp.* print.*| // -> 7.38905...
-
-"Example If-Then-Else" print.*|
-
-( // begins new function definition
-  // define x to be input to function
-  x:
-  // define true to be yes
-  "yes" true:
-  // define false to be no
-  "no" false:
-  // x. gives value defined from x: (the input)
-  // form lists [x] & [1] then concatenate to form [x, 1]
-  // compose equals function with list eq([x,1])
-  // evaluate... returns result of evaluation
-  // use boolean result to dereference local value for true/false
-  x.; 1;, eq.*.|
-) f: // define f to be the above function
-
-// compose f and 0, f(0), then compose with print, print(f(0)), and evaluate
-0 f.* print.*| // -> no
-1 f.* print.*| // -> yes
-2 f.* print.*| // -> no
-
-
-"Example Key-Value Objects" print.*|
-
-( // define a function that returns values given keys
-  x:
-  "hello" a:
-  "goodbye" b:
-  "wubalubadubdub" c:
-  // x. gives value from input value, and x.. uses input value as local reference
-  // e.g. if x. = a, then x.. = "hello"
-  x..|
-) o:
-
-// compose object function with symbol o(a)
-a o.* print.*| // -> hello
-b o.* print.*| // -> goodbye
-c o.* print.*| // -> wubalubadubdub
-
-
-
-"Example Iteration" print.*|
+(
+  "Example Function Call" #print.*|
+  1; 2;,3;,4;, #sum.* #print.*|  // -> 10
+);
 
 (
-  i: // input is number of iterations
-  i. print.*| // print current iteration
-  "done" print.* true: // terminal case
-  i.; 1;, diff.* w.* false: // loop case take advantage of tail-call recursion
-  i.; 0;, eq.*.| // loop condition
-) w:
+  "Example Indexing" #print.*|
 
-5 w.*| // -> 5, 4, 3, 2, 1, 0, done
-
-
-"Example Recursion" print.*|
-
-(
-  n:
-  // prints current input
-  n. print.*|
-  1 true:
-  // factorial(n-1) * n
-  n.; 1;, diff.* factorial.*; n.;, prod.* false:
-  // n === 1 -> true/false -> local key gives returned value
-  n.; 1;, eq.*.|
-) factorial:
-
-10 factorial.* print.*|
-
-"Example Closure" print.*|
-
-(
-  "old stuff" a:
-  "other stuff" b:
-
+  "a"; "b";, "c";,
   (
-    m:
-    (x: (x.!)) set:
-    (x: x..) get:
-    m..
-  )
-) q:
+    $0. #print.*|
+    $1. #print.*|
+    $2. #print.*|
+  )*|
+);,
 
-// creates object
-q.| firstObj:
-q.| secondObj:
+(
+  "Example Key-Value Objects" #print.*|
 
-// get values from object's closure
-a get firstObj.*|*| print.*|
-b get firstObj.*|*| print.*|
+  void
+    o
+      void
+        a "hello"!
+        b "goodbye"!
+        c "wubalubadubdub"!
+    !
+  (
+    $o.a. #print.*| // -> hello
+    $o.b. #print.*| // -> goodbye
+    $o.c. #print.*| // -> wubalubadubdub
+  )*|
+);,
 
-// set new value in first object, but not second object
-"new stuff" a set firstObj.*|*|*|
-a get firstObj.*|*| print.*|
-a get secondObj.*|*| print.*|
+(
+  "Example Function Import" #print.*|
+
+  void impAddOne @"./addOne.gall".!
+  (
+    2 $impAddOne.* #print.*| // -> 3
+  )*|
+);,
+
+(
+  "Example Curry Definition" #print.*|
+
+  void e 2.71828182845904!
+  (
+    void exp (#e.; $;, #pow.*|)!
+    (
+      2 $exp.* #print.*| // -> 7.38905...
+    )*|
+  )*|
+);,
+
+(
+  "Example If-Then-Else" #print.*|
+
+  void
+    f (
+      void
+        true "yes"! // define true to be yes
+        false "no"! // define false to be no
+      $; 1;, #eq.*|.
+    )!
+  (
+    0 $f.*| #print.*| // -> no
+    1 $f.*| #print.*| // -> yes
+    2 $f.*| #print.*| // -> no
+  )*|
+);,
+
+(
+  "Example Iteration" #print.*|
+
+  void w (
+    void
+      count $!
+      repeat (
+        $count. #print.*|
+        void
+          true "done" #print.*! // terminal case
+          false  // loop case take advantage of tail-call recursion
+            $count $count.; 1;, #diff.*|!
+            $repeat.*
+          !
+        ($ #count.; 0;, #eq.*|.|)*| // loop condition
+      )!
+    ($ $repeat.*|)*|
+  )!
+  (
+    5 $w.*| // -> 5, 4, 3, 2, 1, 0, done
+  )*|
+);,
+
+(
+  "Example Factorial" #print.*|
+
+  void factorial (
+    void
+      n $!
+      repeat (
+        $
+          true (1)! // terminal case
+          false  // loop case take advantage of tail-call recursion
+            ($n $n.; 1;, #diff.*|! $repeat.*|; $n.;, #prod.*|)
+          !
+        ($ $ $n.; 0;, #eq.*|.*|)*| // loop condition
+      )!
+    ($ $repeat.*|)*|
+  )!
+  (
+    10 $factorial.* #print.*| // -> 3,628,800
+  )*|
+);,
+
+($x.|)/|

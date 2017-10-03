@@ -1,30 +1,34 @@
 const moo = require('moo');
 const fs = require('fs');
 const path = require('path');
+const Promise = require('bluebird');
 
 let lexer = moo.compile({
   space: {match: /\s+/, lineBreaks: true},
   comment: /\/\/.*?$/,
-  float: /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)(?:[eE][-+]?[0-9]+)?\b/,
-  int: /-?(?:[0-9]|[1-9][0-9]+)\b/,
-  string: /"(?:\\["bfnrt\/\\]|\\u[a-fA-F0-9]{4}|[^"\\])*"/,
   functionStart:  '(',
   functionEnd:  ')',
   concat: ',',
   newlist: ';',
   push: '<',
   pop: '>',
-  set: ':',
-  reset: '!',
+  set: '!',
   get: '.',
   compose: '*',
+  catch: '~',
   map: '^',
   reduce: '/',
   evaluate: '|',
   void: 'void',
+  input: '$',
+  scope: '#',
+  load: '@',
   bool: /true|false/,
   symbol: /[A-Za-z_][A-Za-z0-9_]*/,
-  import: '#'
+  clear: '-',
+  float: /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)(?:[eE][-+]?[0-9]+)?\b/,
+  int: /-?(?:[0-9]|[1-9][0-9]+)\b/,
+  string: /"(?:\\["bfnrt\/\\]|\\u[a-fA-F0-9]{4}|[^"\\])*"/
 });
 
 const modules = {};
@@ -33,9 +37,8 @@ exports.run = (mainPath) => {
   const filename = path.resolve(mainPath);
 
   const makef = parse(filename);
-  const stack = [];
-  makef(stack, rootScope);
-  evaluate(stack.pop());
+
+  makef(rootScope).then(evaluate);
 };
 
 const parse = function(filename) {
@@ -49,112 +52,146 @@ const parse = function(filename) {
   return modules[filename] = makeFunction(lexer, filename);
 };
 
+// https://stackoverflow.com/questions/24660096/correct-way-to-write-loops-for-promise
+const promiseLoop = Promise.method((condition, action, value) => {
+  if (!condition(value)){
+    return value;
+  }
+
+  return action(value).then((value) => promiseLoop(condition, action, value));
+});
+
 const evaluate = function(f, x) {
   if (typeof f === 'function') {
     if (f.tailCall) {
       //console.log("tail call:");
       //let numCalls = 0;
-
-      let nextF = f(x);
-
-      while(nextF.tailCall) {
-        nextF = nextF();
-        //console.log('iteration: ' + numCalls);
-        //numCalls++;
-      }
-
-      if (typeof nextF === 'function') {
-        return nextF();
-      }else{
-        return nextF;
-      }
+      return f(x).then(f => promiseLoop(
+          f => (f.tailCall),
+          f => f(),
+          f
+        ))
+        .then(f => {
+          if (typeof f === 'function') {
+            return f();
+          }else{
+            return f;
+          }
+        });
 
     }else{
       return f(x);
     }
   }else{
-    return f;
+    return Promise.resolve(f);
   }
 };
 
 
 const ops = {
+  clear: (token) => (stack) => {
+    stack.pop();
+    return stack;
+  },
   bool: (token) => (stack) => {
     //console.log("bool");
-    stack.push(() => {
-      if (token.value === 'true'){
-        return true;
-      }else{
-        return false;
-      }
-    });
+    if (token.value === 'true'){
+      stack.push(Promise.resolve(true));
+    }else{
+      stack.push(Promise.resolve(false));
+    }
+
     return stack;
   },
   string: (token) => (stack) => {
     //console.log("string");
-    stack.push(() => (token.value.substring(1,token.value.length-1)));
+    stack.push(Promise.resolve(token.value.substring(1,token.value.length-1)));
+
+    return stack;
+  },
+  symbol: (token) => (stack) => {
+    //console.log("symbol");
+
+    stack.push(Promise.resolve(token.value));
+
     return stack;
   },
   float: (token) => (stack) => {
     //console.log("float");
-    stack.push(() => (parseFloat(token.value)));
+    stack.push(Promise.resolve(parseFloat(token.value)));
+
     return stack;
   },
   int: (token) => (stack) => {
     //console.log("int");
-    stack.push(() => (parseInt(token.value)));
+    stack.push(Promise.resolve(parseInt(token.value)));
+
     return stack;
   },
   void: (token) => (stack) => {
     //console.log("void");
-    stack.push(() => ([]));
+
+    stack.push(Promise.resolve({}));
     return stack;
   },
-  symbol: (token) => (stack, scope) => {
-    //console.log("symbol");
-    stack.push(() => (token.value));
+  input: (token) => (stack, scope) => {
+    //console.log("input");
+    stack.push(Promise.resolve(scope.input));
+
     return stack;
   },
-  set: (token) => (stack, scope) => {
+  scope: (token) => (stack, scope) => {
+    //console.log("scope");
+    stack.push(Promise.resolve(scope.get));
+
+    return stack;
+  },
+  load: (token) => (stack, scope) => {
+    stack.push(Promise.resolve(moduleName => {
+      const moduleFilename = path.resolve(scope.dirname(), moduleName);
+
+      const makef = parse(moduleFilename);
+
+      return makef(rootScope);
+    }));
+
+    return stack;
+  },
+  set: (token) => (stack) => {
     //console.log("reference");
-    const keys = stack.pop();
     const value = stack.pop();
+    const key = stack.pop();
+    const object = stack.pop();
 
-    if (typeof keys === "function") {
-      scope.set(evaluate(keys), value);
-    }else{
-      scope.set(keys, value);
-    }
+    stack.push(
+      Promise.all([value, key, object])
+      .then(([value, key, object]) => {
+        return Object.assign({}, object, {[key]: value});
+      })
+    );
 
     return stack;
   },
-  reset: (token) => (stack, scope) => {
-    //console.log("redefine");
-    const keys = stack.pop();
-    const value = stack.pop();
-
-    if (typeof keys === "function") {
-      scope.reset(evaluate(keys), value);
-    }else{
-      scope.reset(keys, value);
-    }
-
-    return stack;
-  },
-  get: (token) => (stack, scope) => {
+  get: (token) => (stack) => {
     //console.log("dereference");
-    const keys = stack.pop();
+    const key = stack.pop();
+    const object = stack.pop();
 
-    if (typeof keys === "function") {
-      const keyval = evaluate(keys);
-      const refval = scope.get(keyval);
-      //console.log(keyval + " -> " + refval);
-      stack.push(refval);
-    }else{
-      const refval = scope.get(keys);
-      //console.log(keys + " -> " + refval);
-      stack.push(refval);
-    }
+    stack.push(
+      Promise.all([key, object])
+      .then(([key, object]) => {
+        if (typeof object[key] === 'undefine') {
+          throw new Error(`Key ${key} is not defined line ${token.line} col ${token.col}`);
+        }
+
+        if (typeof object === 'function') {
+          return object(key)
+        }else{
+          return object[key];
+        }
+      })
+    );
+
     return stack;
   },
   compose: (token) => (stack) => {
@@ -162,51 +199,39 @@ const ops = {
     const f = stack.pop();
     const g = stack.pop();
 
-    const h = (x) => {
-      const gval = (typeof g === 'function') ? evaluate(g, x) : g;
+    stack.push(
+      Promise.all([f, g])
+      .then(([f, g]) => {
+        const h = (x) => {
+          if (typeof g === 'function') {
+            return evaluate(g, x)
+            .then(gval => {
+              if (f instanceof Array) {
+                return f[gval];
+              }else if (typeof f === 'function') {
+                return f(gval);
+              }else{
+                throw new Error(`Not a function line ${token.line} col ${token.col}`);
+              }
+            });
+          }else{
+            return Promise.resolve().then(() => {
+              if (f instanceof Array) {
+                return f[g];
+              }else if (typeof f === 'function') {
+                return f(g);
+              }else{
+                throw new Error(`Not a function line ${token.line} col ${token.col}`);
+              }
+            });
+          }
+        };
 
-      if (f instanceof Array) {
-        return f[gval];
-      }else if (typeof f === 'function') {
-        return f(gval);
-      }else{
-        throw new Error(`Not a function line ${token.line} col ${token.col}`);
-      }
-    };
+        h.tailCall = f.tailCall;
 
-    h.tailCall = f.tailCall;
-
-    stack.push(h);
-
-    return stack;
-  },
-  map: (token) => (stack) => {
-    //console.log("compose");
-    const f = stack.pop();
-    const arr = stack.pop();
-
-    const newarr = () => {
-      const arrval = (typeof arr === 'function') ? evaluate(arr) : arr;
-
-      return arrval.map((x, index) => evaluate(f, [x, index]));
-    };
-
-    stack.push(newarr);
-
-    return stack;
-  },
-  reduce: (token) => (stack) => {
-    //console.log("compose");
-    const f = stack.pop();
-    const arr = stack.pop();
-
-    const h = (initial) => {
-      const arrval = (typeof arr === 'function') ? evaluate(arr) : arr;
-
-      return arrval.reduce((acc, x, index) => evaluate(f, [acc, x, index]), initial);
-    };
-
-    stack.push(h);
+        return h;
+      })
+    );
 
     return stack;
   },
@@ -214,7 +239,65 @@ const ops = {
     //console.log("evaluate");
     const f = stack.pop();
 
-    stack.push(evaluate(f));
+    stack.push(f.then(evaluate));
+
+    return stack;
+  },
+  catch: (token) => (stack) => {
+    //console.log("evaluate");
+    const f = stack.pop();
+    const g = stack.pop();
+
+    stack.push(
+      Promise.all([f, g])
+      .then(([f, g]) => {
+        const h = (x) => {
+          if (typeof g === 'function') {
+            return evaluate(g, x).catch(error => evaluate(f, error));
+          }else{
+            return Promise.resolve(g);
+          }
+        };
+
+        return h;
+      })
+    );
+
+    return stack;
+  },
+  map: (token) => (stack) => {
+    //console.log("map");
+    const f = stack.pop();
+    const arr = stack.pop();
+
+    stack.push(
+      Promise.all([f, arr])
+      .then(([f, arr]) => {
+        return Promise.all(arr.map((x, index) => evaluate(f, {x, index})));
+      })
+    );
+
+    return stack;
+  },
+  reduce: (token) => (stack) => {
+    //console.log("reduce");
+    const f = stack.pop();
+    const arr = stack.pop();
+
+    stack.push(
+      Promise.all([f, arr])
+      .then(([f, arr]) => {
+        return (initial) => {
+          return arr.reduce((acc, x, index) => {
+            if (acc) {
+              return acc.then(acc => evaluate(f, {acc, x, index}));
+            }else{
+              return evaluate(f, {acc, x, index});
+            }
+          }, initial);
+        };
+      })
+    );
 
     return stack;
   },
@@ -223,16 +306,17 @@ const ops = {
 
     const listEnd = stack.pop();
     const listStart = stack.pop();
-    stack.push(() => {
-      const a = evaluate(listStart);
-      const b = evaluate(listEnd);
 
-      if (a instanceof Array && b instanceof Array) {
-        return [...a, ...b];
-      }else if (typeof a === 'string' && typeof b === 'string') {
-        return a + b;
-      }
-    });
+    stack.push(
+      Promise.all([listEnd, listStart])
+      .then(([listEnd, listStart]) => {
+        if (listEnd instanceof Array && listStart instanceof Array) {
+          return [...listStart, ...listEnd];
+        }else if (typeof listEnd === 'string' && typeof listStart === 'string') {
+          return listStart + listEnd;
+        }
+      })
+    );
 
     return stack;
   },
@@ -241,11 +325,13 @@ const ops = {
 
     const value = stack.pop();
     const list = stack.pop();
-    stack.push(() => {
-      const valueval = evaluate(value);
-      const listval = evaluate(list);
-      return [...listval, valueval];
-    });
+
+    stack.push(
+      Promise.all([value, list])
+      .then(([value, list]) => {
+        return [...list, value];
+      })
+    );
 
     return stack;
   },
@@ -253,34 +339,36 @@ const ops = {
     //console.log("pop");
 
     const list = stack.pop();
-    const listval = evaluate(list);
 
-    if (listval.length > 1) {
+    stack.push(list.then(list => {
+      if (list.length > 1){
+        return list.slice(0, listval.length-1);
+      }else if (list.length === 1){
+        return [];
+      }else{
+        throw new Error(`Cannot pop from empty list ${token.line} col ${token.col}`);
+      }
+    }));
 
-      stack.push(listval.slice(0, listval.length-1));
-      stack.push(listval[listval.length-1]);
+    stack.push(list.then(list => {
+      if (list.length > 1) {
+        return list[list.length-1];
+      }else if (list.length === 1){
+        return list[0];
+      }else{
+        throw new Error(`Cannot pop from empty list  (${filename}:${token.line}:${token.col})`);
+      }
+    }));
 
-    }else if (listval.length === 1){
-      stack.push([]);
-      stack.push(listval[0]);
-    }else{
-      throw new Error(`Cannot pop from empty list ${token.line} col ${token.col}`);
+    return stack;
+  },
+  newlist: (token, filename) => (stack) => {
+    try{
+      const f = stack.pop();
+      stack.push(f.then(f => [f]));
+    }catch(error) {
+      throw new Error(error.message + ` (${filename}:${token.line}:${token.col})`)
     }
-
-    return stack;
-  },
-  newlist: (token) => (stack) => {
-    const f = stack.pop();
-    stack.push(() => ([evaluate(f)]));
-    return stack;
-  },
-  import: (token, filename) => (stack, scope) => {
-    const moduleName = stack.pop();
-    const moduleFilename = path.resolve(path.dirname(filename), evaluate(moduleName));
-
-    const makef = parse(moduleFilename);
-
-    makef(stack, rootScope);
 
     return stack;
   }
@@ -297,7 +385,7 @@ const makeFunction = (lexer, filename) => {
   while(token && token.type !== 'functionEnd'){
 
     if (token.type === 'functionStart'){
-      sequence.push(makeFunction(lexer, filename));
+      sequence.push((makef => (stack, scope) => stack.push(makef(scope)))(makeFunction(lexer, filename)));
     }else{
 
       let op = ops[token.type];
@@ -317,16 +405,12 @@ const makeFunction = (lexer, filename) => {
     tailCall = true;
   }
 
-  return (stack, scope) => {
+  return (scope) => {
     const f = (x) => {
       //console.log(`calling function: ${sequence.length}`);
 
       let localStack = [];
-      if (typeof x !== 'undefined') {
-        localStack.push(x);
-      }
-
-      let localScope = makeScope(scope);
+      const localScope = makeScope(scope, filename, x);
 
       sequence.forEach(op => {
         op(localStack, localScope);
@@ -339,58 +423,41 @@ const makeFunction = (lexer, filename) => {
 
     f.tailCall = tailCall;
 
-    stack.push(f);
-
-    return stack;
+    return Promise.resolve(f);
   };
 };
 
-const makeScope = (parentScope, filename) => {
-  const references = {};
+const makeScope = (parentScope, filename, inputObj) => {
 
-  return {
+  const scope = {
     filename: () => (filename ? filename : parentScope.filename()),
     dirname: () => (filename ? path.dirname(filename) : parentScope.dirname()),
-    set: (key, value) => {
-
-      if (typeof references[key] !== 'undefined') {
-        throw new Error(`Value for key ${key} already defined`);
+    input: inputObj,
+    get: (key, includeLocalInput) => {
+      //console.log(references);
+      if (includeLocalInput && typeof inputObj !== 'undefined' && typeof inputObj[key] !== 'undefined') {
+        return inputObj[key];
       }else{
-
-        references[key] = value;
-      }
-      //console.log(references);
-    },
-    reset: (key, value) => {
-      if (typeof references[key] === 'undefined') {
-        parentScope.reset(key, value);
-      }else{
-        references[key] = value;
-      }
-      //console.log(references);
-    },
-    get: (key) => {
-      //console.log(references);
-      if (typeof references[key] === 'undefined') {
         if (parentScope) {
-          return parentScope.get(key);
+          return parentScope.get(key, true);
+
         }else{
-          throw new Error(`Value for key ${key} not defined`);
+          throw new Error(`Key ${key} is not defined within scope.`)
         }
-      }else{
-        return references[key];
       }
     }
   };
+
+  return scope;
 };
 
-const rootScope = makeScope();
+const rootInput = {};
 
-rootScope.set("print", console.log);
+rootInput.print = console.log;
 
-rootScope.set("eq", (x) => (x[0] == x[1]));
+rootInput.eq = Promise.method((x) => (x[0] == x[1]));
 
-rootScope.set("not", (x) => {
+rootInput.not = Promise.method((x) => {
   if (x instanceof Array) {
     return x.map((cur) => (!cur));
   }else{
@@ -398,19 +465,19 @@ rootScope.set("not", (x) => {
   }
 });
 
-rootScope.set("or", (x) => {
+rootInput.or = Promise.method((x) => {
   return x.reduce((sum, cur) => (sum || cur), false);
 });
 
-rootScope.set("and", (x) => {
+rootInput.and = Promise.method((x) => {
   return x.reduce((sum, cur) => (sum && cur), true);
 });
 
-rootScope.set("xor", (x) => {
+rootInput.xor = Promise.method((x) => {
   return x.reduce((sum, cur) => ((sum || cur) && !(sum && cur)), false);
 });
 
-rootScope.set("diff", (x) => {
+rootInput.diff = Promise.method((x) => {
   if (typeof x === 'undefined'){
     throw new Error("diff must have an input.")
   }
@@ -428,15 +495,15 @@ rootScope.set("diff", (x) => {
   }
 });
 
-rootScope.set("sum", (x) => {
+rootInput.sum = Promise.method((x) => {
   return x.reduce((sum, cur) => (sum + cur), 0);
 });
 
-rootScope.set("prod", (x) => {
+rootInput.prod = Promise.method((x) => {
   return x.reduce((sum, cur) => (sum * cur), 1);
 });
 
-rootScope.set("pow", (x) => {
+rootInput.pow = Promise.method((x) => {
   if (typeof x === 'undefined'){
     throw new Error("pow must have an input.")
   }
@@ -453,3 +520,5 @@ rootScope.set("pow", (x) => {
     return x;
   }
 });
+
+const rootScope = makeScope(null, null, rootInput);

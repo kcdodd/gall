@@ -3,15 +3,12 @@
   "version": "1.0.0",
   "description": "Gall is a toy programming language. This is a prototyping javascript interpreter for gall.",
   "main": "index.js",
-  "scripts": {
-
-  },
+  "scripts": {},
   "author": "Kenneth Carter Dodd",
   "license": "MIT",
   "dependencies": {
+    "bluebird": "^3.5.0",
     "moo": "^0.4.3"
   },
-  "devDependencies": {
-
-  }
+  "devDependencies": {}
 }
