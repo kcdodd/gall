@@ -172,7 +172,7 @@ const ops = {
 
     return stack;
   },
-  get: (token) => (stack) => {
+  get: (token, filename) => (stack) => {
     //console.log("dereference");
     const key = stack.pop();
     const object = stack.pop();
@@ -180,15 +180,16 @@ const ops = {
     stack.push(
       Promise.all([key, object])
       .then(([key, object]) => {
-        if (typeof object[key] === 'undefine') {
-          throw new Error(`Key ${key} is not defined line ${token.line} col ${token.col}`);
-        }
 
         if (typeof object === 'function') {
           return object(key)
         }else{
           return object[key];
         }
+
+      })
+      .catch(error => {
+        throw new Error(error.message + ` (${filename}:${token.line}:${token.col})`);
       })
     );
 
@@ -288,13 +289,30 @@ const ops = {
       Promise.all([f, arr])
       .then(([f, arr]) => {
         return (initial) => {
-          return arr.reduce((acc, x, index) => {
-            if (acc) {
-              return acc.then(acc => evaluate(f, {acc, x, index}));
-            }else{
-              return evaluate(f, {acc, x, index});
-            }
-          }, initial);
+          if (arr instanceof Array) {
+            return arr.reduce((acc, x, index) => {
+              if (acc) {
+                return acc.then(acc => evaluate(f, {acc, x, index}));
+              }else{
+                return evaluate(f, {acc, x, index});
+              }
+            }, initial);
+          }else if (typeof arr === 'function') {
+
+            const reduce = (index, acc) => {
+              return Promise.all([acc, evaluate(arr, {index})]).then(([acc, value]) => {
+
+                if (typeof value === 'undefined'){
+                  return acc;
+                }
+
+                return reduce(index + 1, evaluate(f, {acc, value, index}));
+              });
+            };
+
+            return reduce(0, initial);
+
+          }
         };
       })
     );

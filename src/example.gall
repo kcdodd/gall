@@ -74,16 +74,18 @@
 
   void w (
     void
-      count $!
+      max $!
+      count 0!
       repeat (
         $count. #print.*|
         void
           true "done" #print.*! // terminal case
           false  // loop case take advantage of tail-call recursion
-            $count $count.; 1;, #diff.*|!
+            $
+              count $count.; 1;, #sum.*|!
             $repeat.*
           !
-        ($ #count.; 0;, #eq.*|.|)*| // loop condition
+        ($ #count.; #max.;, #eq.*|.|)*| // loop condition
       )!
     ($ $repeat.*|)*|
   )!
@@ -113,4 +115,16 @@
   )*|
 );,
 
-($x.|)/|
+(
+  "Example Function Reduce" #print.*|
+
+  (
+    void
+      true ()!
+      false (#index.)!
+    ($ #index2.; 5;, #eq.*|.|)*|
+  )
+  ($value. #print.*|)/|
+);,
+
+($x.|)/| // use reduce to run examples synchronously
